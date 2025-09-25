@@ -7,7 +7,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 
 @SpringBootApplication
 @EnableConfigurationProperties
-@MapperScan("com.luanjining.rag.Mapper")  // 你可以指定要扫描的Mapper接口包路径
+@MapperScan("com.luanjining.rag.Mapper") // 添加Mapper扫描
 public class RagApplication {
 
 	public static void main(String[] args) {
