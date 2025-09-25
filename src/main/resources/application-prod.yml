@@ -1,0 +1,31 @@
+server:
+  port: 8085
+  servlet:
+    context-path: /api
+
+spring:
+  application:
+    name: RAG-Service
+  profiles:
+    active: prod
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+rag:
+  dify:
+    authorization-dataset: ${RAG_AUTHORIZATION_DATASET:Bearer dataset-juR2DRl8alE1eBvQmvJ6KiVs}
+    authorization-app: ${RAG_AUTHORIZATION_APP:Bearer app-9u1tQG9ZjsmY51SWZDBn9tyD}
+    user-id: ${RAG_USER_ID:202521081036@std.uestc.edu.cn}
+    base-url: ${RAG_BASE_URL:https://api.dify.ai/v1}
+    dataset-id: ${RAG_DATASET_ID:bafabbc4-0093-49ec-94a7-71a1e786105d}
+
+logging:
+  level:
+    com.luanjining: INFO
+    org.springframework.web: WARN
+  file:
+    name: logs/rag-service.log
+  pattern:
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"

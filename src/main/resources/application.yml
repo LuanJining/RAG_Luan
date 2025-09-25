@@ -1,0 +1,80 @@
+server:
+  port: 8085
+  servlet:
+    context-path: /api
+
+spring:
+  application:
+    name: RAG-Service
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+  # 数据源配置
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url: jdbc:postgresql://localhost:5432/kb_platform
+    username: postgres
+    password:
+    type: com.alibaba.druid.pool.DruidDataSource
+
+    # Druid连接池配置
+    druid:
+      initial-size: 5
+      min-idle: 5
+      max-active: 20
+      test-on-borrow: true
+      validation-query: SELECT 1
+      # 监控配置
+      web-stat-filter:
+        enabled: true
+      stat-view-servlet:
+        enabled: true
+        url-pattern: /druid/*
+        allow: 127.0.0.1
+
+# MyBatis-Plus配置
+mybatis-plus:
+  configuration:
+    # 开启驼峰命名转换
+    map-underscore-to-camel-case: true
+    # 打印SQL日志
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  # 实体类扫描路径
+  type-aliases-package: com.luanjining.rag.dto.entity
+  # mapper.xml文件位置
+  mapper-locations: classpath:mapper/*.xml
+  global-config:
+    db-config:
+      # 主键生成策略
+      id-type: AUTO
+      # 逻辑删除配置
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+      # 表名前缀(如果需要)
+      # table-prefix: rag_
+
+# RAG配置 - 从k-base的message.properties迁移
+rag:
+  dify:
+    authorization-dataset: Bearer dataset-juR2DRl8alE1eBvQmvJ6KiVs
+    authorization-app: Bearer app-9u1tQG9ZjsmY51SWZDBn9tyD
+    user-id: 202521081036@std.uestc.edu.cn
+    base-url: https://api.dify.ai/v1
+    dataset-id: bafabbc4-0093-49ec-94a7-71a1e786105d
+
+  minio:
+    endpoint: http://127.0.0.1:9000
+    access-key: minio
+    secret-key: minio123
+    bucket-name: my-bucket
+
+logging:
+  level:
+    com.luanjining: DEBUG
+    org.springframework.web: INFO
+    # 数据库相关日志
+    com.luanjining.mapper: DEBUG
+    druid.sql: DEBUG
