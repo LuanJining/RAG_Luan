@@ -7,7 +7,6 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 
 @SpringBootApplication
 @EnableConfigurationProperties
-@MapperScan("com.luanjining.rag.Mapper") // 添加Mapper扫描
 public class RagApplication {
 
 	public static void main(String[] args) {
