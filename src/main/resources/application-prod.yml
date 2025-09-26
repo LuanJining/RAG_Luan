@@ -21,6 +21,13 @@ rag:
     base-url: ${RAG_BASE_URL:https://api.dify.ai/v1}
     dataset-id: ${RAG_DATASET_ID:bafabbc4-0093-49ec-94a7-71a1e786105d}
 
+# MinIO配置 - 生产环境
+minio:
+  endpoint: http://minio:9000
+  access-key: minioadmin
+  secret-key: minioadmin
+  bucket-name: rag-documents
+
 logging:
   level:
     com.luanjining: INFO

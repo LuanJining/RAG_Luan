@@ -4,12 +4,16 @@ import com.luanjining.rag.config.RagConfiguration;
 import com.luanjining.rag.dto.response.DocumentResponse;
 import com.luanjining.rag.dto.response.SearchResponse;
 import com.luanjining.rag.dto.response.SuccessResponse;
+import com.luanjining.rag.entity.FileMap;
 import com.luanjining.rag.exception.RagException;
+import com.luanjining.rag.mapper.FileMapMapper;
+import com.luanjining.rag.mapper.SpaceMapper;
 import com.luanjining.rag.util.FileTextExtractor;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kong.unirest.HttpResponse;
 import kong.unirest.Unirest;
+import kong.unirest.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,21 +37,36 @@ public class DocumentService {
     private RagConfiguration ragConfig;
 
     @Autowired
+    private FileMapMapper fileMapMapper;
+
+    @Autowired
+    private MinioService minioService;
+
+    @Autowired
     private FileTextExtractor fileTextExtractor;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
-     * 创建文档 - 从API_demo.create_document迁移
+     * 创建文档
      */
-    public DocumentResponse createDocument(Long spaceId, String title, MultipartFile file) {
+    public DocumentResponse createDocument(String spaceId, String title, MultipartFile file) {
+        File tempFile = null;
         try {
-            logger.info("开始创建文档: spaceId={}, title={}, fileName={}",
-                    spaceId, title, file.getOriginalFilename());
+            logger.info("开始创建文档: spaceId={}, title={}, fileName={}", spaceId, title, file.getOriginalFilename());
 
-            File tempFile = convertMultipartFileToFile(file);
+            // 1. 先上传到MinIO（在文件还未被清理时）
+            boolean is_success = minioService.uploadFile(file, title);
+            if (!is_success) {
+                throw new RagException("MinIO上传失败", "MINIO_UPLOAD_FAILED");
+            }
+            logger.info("MinIO上传成功");
+
+            // 2. 处理文件提取文本
+            tempFile = convertMultipartFileToFile(file);
             String extractedText = fileTextExtractor.getExtractedText(tempFile);
 
+            // 3. 将文件内容发送到RAG平台创建文档
             HttpResponse<String> response = Unirest.post(ragConfig.getBaseUrl() + "/datasets/" +
                             ragConfig.getDatasetId() + "/document/create-by-text")
                     .header("Authorization", ragConfig.getAuthorizationDataset())
@@ -55,51 +74,71 @@ public class DocumentService {
                     .body(buildCreateDocumentJson(title, extractedText))
                     .asString();
 
-            tempFile.delete();
-
-            if (response.getStatus() == 200 || response.getStatus() == 201) {
-                logger.info("文档创建成功: {}", response.getBody());
-
-                try {
-                    JsonNode jsonNode = objectMapper.readTree(response.getBody());
-                    String documentId = jsonNode.path("document").path("id").asText();
-                    Long docId = Math.abs((long) documentId.hashCode());
-                    return new DocumentResponse(docId, spaceId);
-                } catch (Exception e) {
-                    logger.warn("解析文档ID失败，返回默认ID: {}", e.getMessage());
-                    return new DocumentResponse(101L, spaceId);
-                }
-
-            } else {
-                logger.error("文档创建失败: status={}, body={}", response.getStatus(), response.getBody());
+            if (response.getStatus() != 200 && response.getStatus() != 201) {
+                logger.error("Dify API调用失败: status={}, body={}", response.getStatus(), response.getBody());
                 throw new RagException("创建文档失败: " + response.getBody(), "CREATE_DOCUMENT_FAILED");
             }
+
+            // 4. 将docId从response的请求体中提取出来
+            String body = response.getBody();
+            JSONObject json = new JSONObject(body);
+            String docId = json.getJSONObject("document").getString("id");
+
+            // 获取原文件扩展名
+            String extension = "";
+            if (file.getOriginalFilename() != null && file.getOriginalFilename().contains(".")) {
+                extension = file.getOriginalFilename().substring(file.getOriginalFilename().lastIndexOf("."));
+            }
+
+            // 5. postgres操作
+            FileMap fileMap = new FileMap();
+            fileMap.setDocumentId(docId);
+            fileMap.setFileName(title);
+            fileMap.setSpaceId(spaceId);
+            fileMap.setExtension(extension);
+
+            int result = fileMapMapper.insert(fileMap);
+            if (result <= 0) {
+                throw new RagException("数据库插入失败", "DB_INSERT_FAILED");
+            }
+
+            logger.info("文档创建成功: docId={}", docId);
+            return new DocumentResponse(docId, spaceId);
 
         } catch (Exception e) {
             logger.error("创建文档异常", e);
             throw new RagException("创建文档时发生错误: " + e.getMessage(), "CREATE_DOCUMENT_ERROR");
+        } finally {
+            // 6. 清理临时文件
+            if (tempFile != null && tempFile.exists()) {
+                boolean deleted = tempFile.delete();
+                logger.info("临时文件清理: {} - {}", tempFile.getAbsolutePath(), deleted ? "成功" : "失败");
+            }
         }
     }
 
     /**
-     * 更新文档 - 从API_demo.update_document迁移
+     * 更新文档
      */
-    public SuccessResponse updateDocument(Long spaceId, Long docId, String title, MultipartFile file) {
+    public SuccessResponse updateDocument(String spaceId, String docId, String title, MultipartFile file) {
+        File tempFile = null;
         try {
             logger.info("开始更新文档: spaceId={}, docId={}, title={}", spaceId, docId, title);
 
-            String difyDocumentId = "991f797e-bed4-4b66-86e4-c76edf97fe4b";
-
-            String extractedText = "";
-            if (file != null && !file.isEmpty()) {
-                File tempFile = convertMultipartFileToFile(file);
-                extractedText = fileTextExtractor.getExtractedText(tempFile);
-                tempFile.delete();
+            // 1. 先上传到MinIO（在文件还未被清理时）
+            boolean is_success = minioService.uploadFile(file, title);
+            if (!is_success) {
+                throw new RagException("MinIO上传失败", "MINIO_UPLOAD_FAILED");
             }
 
+            // 2. 处理文件提取文本
+            tempFile = convertMultipartFileToFile(file);
+            String extractedText = fileTextExtractor.getExtractedText(tempFile);
+
+            // 3. 将更新内容发送到RAG平台
             HttpResponse<String> response = Unirest.post(ragConfig.getBaseUrl() + "/datasets/" +
                             ragConfig.getDatasetId() + "/documents/" +
-                            difyDocumentId + "/update-by-text")
+                            docId + "/update-by-text")
                     .header("Authorization", ragConfig.getAuthorizationDataset())
                     .header("Content-Type", "application/json")
                     .body(buildUpdateDocumentJson(title, extractedText))
@@ -122,15 +161,25 @@ public class DocumentService {
     /**
      * 删除文档 - 从API_demo.delete_document迁移
      */
-    public SuccessResponse deleteDocument(Long spaceId, Long docId, Long userId) {
+    public SuccessResponse deleteDocument(String spaceId, String docId) {
         try {
-            logger.info("开始删除文档: spaceId={}, docId={}, userId={}", spaceId, docId, userId);
+            logger.info("开始删除文档: spaceId={}, docId={}", spaceId, docId);
 
-            String difyDocumentId = "991f797e-bed4-4b66-86e4-c76edf97fe4b";
+            // 先从数据库中查出对应的文件名
+            FileMap fileMap = fileMapMapper.findByDocumentId(docId);
 
-            HttpResponse<String> response = Unirest.delete(ragConfig.getBaseUrl() + "/datasets/" +
-                            ragConfig.getDatasetId() + "/documents/" +
-                            difyDocumentId)
+            //删除数据库中的文件映射记录
+            fileMapMapper.deleteByDocumentId(docId);
+
+            // 从MinIO删除
+            boolean is_success = minioService.deleteFile(fileMap.getFileName()+fileMap.getExtension());
+            if (!is_success) {
+                throw new RagException("MinIO删除失败", "MINIO_UPLOAD_FAILED");
+            }
+            logger.info("MinIO删除成功");
+
+            // 将文件从RAG平台删除
+            HttpResponse<String> response =Unirest.delete(ragConfig.getBaseUrl() + "/datasets/"+ragConfig.getDatasetId()+"/documents/"+docId)
                     .header("Authorization", ragConfig.getAuthorizationDataset())
                     .asString();
 
@@ -151,49 +200,22 @@ public class DocumentService {
     /**
      * 搜索文档
      */
-    public SearchResponse searchDocuments(Long spaceId, String query, Long userId) {
+        public SearchResponse searchDocuments(String spaceId, String fileName) {
         try {
-            logger.info("开始搜索文档: spaceId={}, query={}, userId={}", spaceId, query, userId);
+            logger.info("开始搜索文档: spaceId={}, fileName={}", spaceId, fileName);
+            SearchResponse searchResponse = new SearchResponse();
+            List<SearchResponse.SearchItem> items = new ArrayList<>();
 
-            String url = ragConfig.getBaseUrl() + "/datasets/" + ragConfig.getDatasetId() +
-                    "/documents?page=1&limit=20&keyword=" + query;
-
-            HttpResponse<String> response = Unirest.get(url)
-                    .header("Authorization", ragConfig.getAuthorizationDataset())
-                    .asString();
-
-            if (response.getStatus() == 200) {
-                logger.info("文档搜索成功");
-
-                try {
-                    JsonNode jsonNode = objectMapper.readTree(response.getBody());
-                    JsonNode dataArray = jsonNode.path("data");
-
-                    List<SearchResponse.SearchItem> items = new ArrayList<>();
-                    for (JsonNode item : dataArray) {
-                        String name = item.path("name").asText();
-                        String documentId = item.path("id").asText();
-
-                        String snippet = "……解析后的文本片段……";
-                        String fileUrl = "/files/" + documentId + ".pdf";
-
-                        Long docId = Math.abs((long) documentId.hashCode());
-                        items.add(new SearchResponse.SearchItem(docId, name, snippet, fileUrl));
-                    }
-
-                    return new SearchResponse(items);
-                } catch (Exception e) {
-                    logger.warn("解析搜索结果失败: {}", e.getMessage());
-                    List<SearchResponse.SearchItem> items = new ArrayList<>();
-                    items.add(new SearchResponse.SearchItem(101L, "安全管理规范",
-                            "……解析后的文本片段……", "/files/101.pdf"));
-                    return new SearchResponse(items);
-                }
-
-            } else {
-                logger.error("文档搜索失败: status={}, body={}", response.getStatus(), response.getBody());
-                throw new RagException("搜索文档失败: " + response.getBody(), "SEARCH_DOCUMENTS_FAILED");
+            List<FileMap> fileMaps = fileMapMapper.findBySpaceIdAndFileNameLike(spaceId, fileName);
+            for (FileMap fileMap : fileMaps) {
+                SearchResponse.SearchItem item = new SearchResponse.SearchItem();
+                item.setDocId(fileMap.getDocumentId());
+                item.setTitle(fileMap.getFileName());
+                items.add(item);
             }
+            searchResponse.setItems(items);
+
+            return searchResponse;
 
         } catch (Exception e) {
             logger.error("搜索文档异常", e);

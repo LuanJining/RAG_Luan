@@ -23,8 +23,8 @@ public class SpaceController {
     /**
      * 创建知识空间
      * POST /api/v1/spaces
-     * 请求: {"name": "研发部知识库", "description": "研发制度与规范"}
-     * 响应: {"spaceId": 1}
+     * 请求: {"name": name, "description": description}
+     * 响应: {"spaceId": spaceId}
      */
     @PostMapping
     public SpaceResponse createSpace(@RequestBody CreateSpaceRequest request) {
