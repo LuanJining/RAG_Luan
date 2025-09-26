@@ -3,6 +3,7 @@ package com.luanjining.rag.controller;
 import com.luanjining.rag.dto.request.CreateSpaceRequest;
 import com.luanjining.rag.dto.response.SpaceResponse;
 import com.luanjining.rag.service.SpaceService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 /**
  * 知识空间控制器 - 实现API文档规范
  */
+@Tag(name = "知识空间管理", description = "知识空间的创建和管理")
 @RestController
 @RequestMapping("/v1/spaces")
 public class SpaceController {

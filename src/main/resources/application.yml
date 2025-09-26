@@ -1,4 +1,3 @@
-# application.yml
 server:
   port: 8085
   servlet:
@@ -18,7 +17,6 @@ spring:
     url: jdbc:postgresql://localhost:5432/kb_platform
     username: postgres
     password:  # 空密码
-    # 连接池配置
     hikari:
       maximum-pool-size: 10
       minimum-idle: 5
@@ -29,26 +27,16 @@ spring:
 
 # MybatisPlus配置
 mybatis-plus:
-  # 配置mapper的扫描路径
   mapper-locations: classpath*:/mapper/**/*.xml
-  # 实体扫描，多个package用逗号或者分号分隔
   type-aliases-package: com.luanjining.rag.entity
-  # 配置
   configuration:
-    # 是否开启自动驼峰命名规则映射
     map-underscore-to-camel-case: true
-    # 如果查询结果中包含空值的列，则 MyBatis 在映射的时候，不会映射这个字段
     call-setters-on-nulls: true
-    # 这个配置会将执行的sql打印出来，在开发或测试的时候可以用
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
   global-config:
-    # 数据库相关配置
     db-config:
-      # 主键类型
       id-type: INPUT
-      # 字段策略
       field-strategy: NOT_EMPTY
-      # 数据库类型
       db-type: POSTGRESQL
 
 # RAG配置
@@ -68,18 +56,16 @@ minio:
   bucket-name: rag-documents
 
 springdoc:
-  api-docs:
-    path: /api/v3/api-docs  # 加上 /api 前缀
   swagger-ui:
-    path: /api/swagger-ui.html  # 加上 /api 前缀
-
+    enabled: true
+  api-docs:
+    enabled: true
 
 # 日志配置
 logging:
   level:
     com.luanjining: DEBUG
-    com.luanjining.rag.mapper: DEBUG
-    com.baomidou.mybatisplus: DEBUG
+    org.springdoc: DEBUG  # 添加这行来查看SpringDoc日志
     org.springframework.web: INFO
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{50} - %msg%n"

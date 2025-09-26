@@ -2,6 +2,7 @@ package com.luanjining.rag.controller;
 
 import com.luanjining.rag.dto.request.QaRequest;
 import com.luanjining.rag.service.QaService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,6 +13,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 /**
  * 问答控制器 - 实现API文档规范
  */
+@Tag(name = "问答服务", description = "基于知识库的问答功能")
 @RestController
 @RequestMapping("/v1/spaces")
 public class QaController {

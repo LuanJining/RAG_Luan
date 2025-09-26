@@ -5,8 +5,12 @@ import com.luanjining.rag.dto.response.SearchResponse;
 import com.luanjining.rag.dto.response.SuccessResponse;
 import com.luanjining.rag.service.DocumentService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,6 +23,7 @@ import org.springframework.web.multipart.MultipartFile;
  */
 @RestController
 @RequestMapping("/v1/spaces")
+@Tag(name = "文档管理", description = "文档相关的增删改查操作")
 public class DocumentController {
 
     private static final Logger logger = LoggerFactory.getLogger(DocumentController.class);
@@ -26,24 +31,30 @@ public class DocumentController {
     @Autowired
     private DocumentService documentService;
 
-    /**
-     * 创建文档（上传PDF/Word）
-     * POST /api/v1/spaces/{spaceId}/docs
-     * 响应: {"docId": 101, "spaceId": 1}
-     */
-
-    @Operation(summary = "创建文档", description = "上传PDF或Word文档")
-    @ApiResponse(responseCode = "200", description = "文档创建成功", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE))
+    @Operation(
+            summary = "创建文档",
+            description = "上传PDF或Word文档到指定知识空间"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "文档创建成功",
+                    content = @Content(schema = @Schema(implementation = DocumentResponse.class))),
+            @ApiResponse(responseCode = "400", description = "请求参数错误"),
+            @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
     @PostMapping(value = "/{spaceId}/docs", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public DocumentResponse createDocument(
-            @PathVariable String spaceId,  // 🔄 改为String类型
+            @Parameter(description = "知识空间ID", required = true, example = "20241201120000")
+            @PathVariable String spaceId,
+
+            @Parameter(description = "文档标题", required = true, example = "安全管理规范")
             @RequestParam String title,
+
+            @Parameter(description = "文档文件(支持PDF、DOCX格式)", required = true)
             @RequestParam("file") MultipartFile file) {
 
         logger.info("收到创建文档请求: spaceId={}, title={}, fileName={}",
                 spaceId, title, file.getOriginalFilename());
 
-        // 🔄 修改spaceId验证逻辑
         if (spaceId == null || spaceId.trim().isEmpty()) {
             throw new IllegalArgumentException("知识空间ID不能为空");
         }
@@ -65,17 +76,24 @@ public class DocumentController {
         return documentService.createDocument(spaceId, title, file);
     }
 
-    /**
-     * 编辑文档
-     * PUT /api/v1/spaces/{spaceId}/docs/{docId}
-     * 响应: {"success": true}
-     */
     @Operation(summary = "编辑文档", description = "更新文档标题或上传新文件")
-    @ApiResponse(responseCode = "200", description = "文档编辑成功", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE))
-    @PutMapping(value = "/{spaceId}/docs/{docId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)    public SuccessResponse updateDocument(
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "文档编辑成功"),
+            @ApiResponse(responseCode = "400", description = "请求参数错误"),
+            @ApiResponse(responseCode = "404", description = "文档不存在")
+    })
+    @PutMapping(value = "/{spaceId}/docs/{docId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public SuccessResponse updateDocument(
+            @Parameter(description = "知识空间ID", required = true)
             @PathVariable String spaceId,
+
+            @Parameter(description = "文档ID", required = true)
             @PathVariable String docId,
+
+            @Parameter(description = "新的文档标题", required = false)
             @RequestParam(required = false) String title,
+
+            @Parameter(description = "新的文档文件", required = false)
             @RequestParam(value = "file", required = false) MultipartFile file) {
 
         logger.info("收到编辑文档请求: spaceId={}, docId={}, title={}",
@@ -96,19 +114,20 @@ public class DocumentController {
         return documentService.updateDocument(spaceId, docId, title, file);
     }
 
-    /**
-     * 删除文档
-     * DELETE /api/v1/spaces/{spaceId}/docs/{docId}?userId=123
-     * 响应: {"success": true}
-     */
     @Operation(summary = "删除文档", description = "根据文档ID删除文档")
-    @ApiResponse(responseCode = "200", description = "文档删除成功", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE))
-    @DeleteMapping("/{spaceId}/docs/{docId}")    public SuccessResponse deleteDocument(
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "文档删除成功"),
+            @ApiResponse(responseCode = "404", description = "文档不存在")
+    })
+    @DeleteMapping("/{spaceId}/docs/{docId}")
+    public SuccessResponse deleteDocument(
+            @Parameter(description = "知识空间ID", required = true)
             @PathVariable String spaceId,
+
+            @Parameter(description = "文档ID", required = true)
             @PathVariable String docId) {
 
-        logger.info("收到删除文档请求: spaceId={}, docId={}",
-                spaceId, docId);
+        logger.info("收到删除文档请求: spaceId={}, docId={}", spaceId, docId);
 
         if (spaceId == null) {
             throw new IllegalArgumentException("知识空间ID不能为空");
@@ -121,19 +140,20 @@ public class DocumentController {
         return documentService.deleteDocument(spaceId, docId);
     }
 
-    /**
-     * 搜索文档
-     * GET /api/v1/spaces/{spaceId}/docs/search?q=安全管理
-     * 响应: {"items": [...]}
-     */
     @Operation(summary = "搜索文档", description = "根据查询关键词搜索文档")
-    @ApiResponse(responseCode = "200", description = "文档搜索结果", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE))
-    @GetMapping("/{spaceId}/docs/search")    public SearchResponse searchDocuments(
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "搜索成功",
+                    content = @Content(schema = @Schema(implementation = SearchResponse.class)))
+    })
+    @GetMapping("/{spaceId}/docs/search")
+    public SearchResponse searchDocuments(
+            @Parameter(description = "知识空间ID", required = true)
             @PathVariable String spaceId,
+
+            @Parameter(description = "搜索关键词", required = false, example = "安全管理")
             @RequestParam(required = false) String q) {
 
-        logger.info("收到搜索文档请求: spaceId={}, q={}",
-                spaceId, q);
+        logger.info("收到搜索文档请求: spaceId={}, q={}", spaceId, q);
 
         if (spaceId == null) {
             throw new IllegalArgumentException("知识空间ID不能为空");
