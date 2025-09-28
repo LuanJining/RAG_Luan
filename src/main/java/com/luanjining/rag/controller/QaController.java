@@ -1,12 +1,15 @@
 package com.luanjining.rag.controller;
 
 import com.luanjining.rag.service.QaService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import kong.unirest.HttpResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 /**
  * 问答控制器 - 实现API文档规范
@@ -24,27 +27,56 @@ public class QaController {
     /**
      * 知识库问答（流式返回）
      * POST /api/v1/spaces/{spaceId}/qa/stream
-     * 请求: {"query": "特种设备维保周期？", "userId": 123}
+     * 请求: {"query": "特种设备维保周期？"}
      * 响应: SSE流式 text/event-stream
      */
+    @Operation(
+            summary = "知识库问答流式接口",
+            description = "基于知识库进行问答，返回SSE流式数据"
+    )
+    @PostMapping(value = "/{spaceId}/qa/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter streamQa(
+            @Parameter(description = "知识空间ID", required = true)
+            @PathVariable String spaceId,
 
-    // TODO: 这里改为POST更合适
-    //       响应改为SSE流式
-    @GetMapping(value = "/{spaceId}/qa/stream")
-    public HttpResponse<String> streamQa(@PathVariable String spaceId, @RequestParam String q) {
+            @Parameter(description = "查询内容", required = true)
+            @RequestBody QaRequest request) {
 
         logger.info("收到知识库问答请求: spaceId={}, query={}",
-                    spaceId, q);
+                spaceId, request.getQuery());
 
-        if (spaceId == null) {
+        if (spaceId == null || spaceId.trim().isEmpty()) {
             throw new IllegalArgumentException("知识空间ID不能为空");
         }
 
-        if (q == null || q.trim().isEmpty()) {
+        if (request.getQuery() == null || request.getQuery().trim().isEmpty()) {
             throw new IllegalArgumentException("查询内容不能为空");
         }
 
+        return qaService.streamAnswer(spaceId, request.getQuery());
+    }
 
-        return qaService.streamAnswer(spaceId, q);
+    /**
+     * 问答请求DTO
+     */
+    public static class QaRequest {
+        private String query;
+        private String userId;
+
+        public String getQuery() {
+            return query;
+        }
+
+        public void setQuery(String query) {
+            this.query = query;
+        }
+
+        public String getUserId() {
+            return userId;
+        }
+
+        public void setUserId(String userId) {
+            this.userId = userId;
+        }
     }
 }
