@@ -1,14 +1,12 @@
 package com.luanjining.rag.controller;
 
-import com.luanjining.rag.dto.request.QaRequest;
 import com.luanjining.rag.service.QaService;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import kong.unirest.HttpResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 /**
  * 问答控制器 - 实现API文档规范
@@ -29,24 +27,24 @@ public class QaController {
      * 请求: {"query": "特种设备维保周期？", "userId": 123}
      * 响应: SSE流式 text/event-stream
      */
-    @PostMapping(value = "/{spaceId}/qa/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter streamQa(@PathVariable Long spaceId, @RequestBody QaRequest request) {
 
-        logger.info("收到知识库问答请求: spaceId={}, query={}, userId={}",
-                spaceId, request.getQuery(), request.getUserId());
+    // TODO: 这里改为POST更合适
+    //       响应改为SSE流式
+    @GetMapping(value = "/{spaceId}/qa/stream")
+    public HttpResponse<String> streamQa(@PathVariable String spaceId, @RequestParam String q) {
+
+        logger.info("收到知识库问答请求: spaceId={}, query={}",
+                    spaceId, q);
 
         if (spaceId == null) {
-            return qaService.createErrorEmitter("知识空间ID不能为空");
+            throw new IllegalArgumentException("知识空间ID不能为空");
         }
 
-        if (request.getQuery() == null || request.getQuery().trim().isEmpty()) {
-            return qaService.createErrorEmitter("查询内容不能为空");
+        if (q == null || q.trim().isEmpty()) {
+            throw new IllegalArgumentException("查询内容不能为空");
         }
 
-        if (request.getUserId() == null) {
-            return qaService.createErrorEmitter("用户ID不能为空");
-        }
 
-        return qaService.streamAnswer(spaceId, request.getQuery(), request.getUserId());
+        return qaService.streamAnswer(spaceId, q);
     }
 }

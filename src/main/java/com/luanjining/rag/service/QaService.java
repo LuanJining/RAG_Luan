@@ -29,109 +29,26 @@ public class QaService {
     @Autowired
     private RagConfiguration ragConfig;
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
-    private final ExecutorService executorService = Executors.newCachedThreadPool();
 
     /**
      * 流式问答 - 从API_demo.chatLLM扩展为SSE
      */
-    public SseEmitter streamAnswer(Long spaceId, String query, Long userId) {
-        SseEmitter emitter = new SseEmitter(60000L);
+    public HttpResponse<String> streamAnswer(String spaceId, String query) {
 
-        executorService.execute(() -> {
-            try {
-                logger.info("开始流式问答: spaceId={}, query={}, userId={}", spaceId, query, userId);
-
-                String requestBody = String.format("{\n" +
-                        "  \"inputs\": {},\n" +
-                        "  \"response_mode\": \"streaming\",\n" +
-                        "  \"auto_generate_name\": true,\n" +
-                        "  \"query\": \"%s\",\n" +
-                        "  \"user\": \"%s\"\n" +
-                        "}", escapeJson(query), ragConfig.getUserId());
-
-                HttpResponse<String> response = Unirest.post(ragConfig.getBaseUrl() + "/chat-messages")
-                        .header("Authorization", ragConfig.getAuthorizationApp())
-                        .header("Content-Type", "application/json")
-                        .body(requestBody)
-                        .asString();
-
-                if (response.getStatus() == 200) {
-                    simulateStreamingResponse(emitter, response.getBody());
-                } else {
-                    logger.error("问答请求失败: status={}, body={}", response.getStatus(), response.getBody());
-                    emitter.completeWithError(new RagException("问答失败: " + response.getBody()));
-                }
-
-            } catch (Exception e) {
-                logger.error("流式问答异常", e);
-                emitter.completeWithError(e);
-            }
-        });
-
-        return emitter;
-    }
-
-    public SseEmitter createErrorEmitter(String errorMessage) {
-        SseEmitter emitter = new SseEmitter();
         try {
-            emitter.send(SseEmitter.event()
-                    .name("error")
-                    .data("{\"error\": \"" + errorMessage + "\"}"));
-            emitter.complete();
-        } catch (IOException e) {
-            emitter.completeWithError(e);
-        }
-        return emitter;
-    }
+            logger.info("开始流式问答: spaceId={}, query={}", spaceId, query);
 
-    /**
-     * 模拟流式响应 - 符合API文档的SSE格式
-     */
-    private void simulateStreamingResponse(SseEmitter emitter, String fullResponse) {
-        try {
-            String[] segments = {
-                    "根据《安全管理规范》",
-                    "特种设备维保周期为6个月",
-                    "具体包括以下几个方面：",
-                    "1. 定期检查设备运行状态",
-                    "2. 清洁和润滑关键部件",
-                    "3. 更换易损件",
-                    "4. 记录维保过程和结果"
-            };
-
-            for (String segment : segments) {
-                QaStreamResponse deltaResponse = new QaStreamResponse(segment);
-                emitter.send(SseEmitter.event()
-                        .name("data")
-                        .data(objectMapper.writeValueAsString(deltaResponse)));
-
-                Thread.sleep(200);
-            }
-
-            List<QaStreamResponse.Reference> references = new ArrayList<>();
-            references.add(new QaStreamResponse.Reference(101L, "安全管理规范", "/files/101.pdf"));
-
-            QaStreamResponse finishResponse = new QaStreamResponse(true, references);
-            emitter.send(SseEmitter.event()
-                    .name("data")
-                    .data(objectMapper.writeValueAsString(finishResponse)));
-
-            emitter.complete();
-            logger.info("流式问答完成");
+            return Unirest.post(ragConfig.getBaseUrl() + "/chat-messages")
+                    .header("Authorization", ragConfig.getAuthorizationApp())
+                    .header("Content-Type", "application/json")
+                    .body("{\n  \"inputs\": {},\n  \"response_mode\": \"streaming\",\n  \"auto_generate_name\": true,\n  \"query\": \""+query+"\",\n  \"user\": \""+ ragConfig.getUserId() +"\"\n}")
+                    .asString();
 
         } catch (Exception e) {
-            logger.error("发送流式响应异常", e);
-            emitter.completeWithError(e);
+            logger.error("流式问答异常", e);
+            throw e;
         }
+
     }
 
-    private String escapeJson(String text) {
-        if (text == null) return "";
-        return text.replace("\\", "\\\\")
-                .replace("\"", "\\\"")
-                .replace("\n", "\\n")
-                .replace("\r", "\\r")
-                .replace("\t", "\\t");
-    }
 }
