@@ -33,23 +33,56 @@ public class DocumentController {
 
     @Operation(
             summary = "创建文档",
-            description = "上传PDF或Word文档到指定知识空间"
+            description = "上传PDF或Word文档到指定知识空间。支持的文件格式：PDF、DOCX"
     )
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "文档创建成功",
-                    content = @Content(schema = @Schema(implementation = DocumentResponse.class))),
-            @ApiResponse(responseCode = "400", description = "请求参数错误"),
-            @ApiResponse(responseCode = "500", description = "服务器内部错误")
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "文档创建成功",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = DocumentResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "请求参数错误",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(example = "{\"error\": \"文件格式不支持\"}")
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "500",
+                    description = "服务器内部错误",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(example = "{\"error\": \"系统内部错误\"}")
+                    )
+            )
     })
     @PostMapping(value = "/{spaceId}/docs", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public DocumentResponse createDocument(
-            @Parameter(description = "知识空间ID", required = true, example = "20241201120000")
+            @Parameter(
+                    description = "知识空间ID",
+                    required = true,
+                    example = "20241201120000",
+                    schema = @Schema(type = "string", pattern = "\\d{14}")
+            )
             @PathVariable String spaceId,
 
-            @Parameter(description = "文档标题", required = true, example = "安全管理规范")
+            @Parameter(
+                    description = "文档标题",
+                    required = true,
+                    example = "安全管理规范",
+                    schema = @Schema(type = "string", maxLength = 100)
+            )
             @RequestParam String title,
 
-            @Parameter(description = "文档文件(支持PDF、DOCX格式)", required = true)
+            @Parameter(
+                    description = "文档文件(支持PDF、DOCX格式，最大10MB)",
+                    required = true
+            )
             @RequestParam("file") MultipartFile file) {
 
         logger.info("收到创建文档请求: spaceId={}, title={}, fileName={}",
@@ -76,24 +109,63 @@ public class DocumentController {
         return documentService.createDocument(spaceId, title, file);
     }
 
-    @Operation(summary = "编辑文档", description = "更新文档标题或上传新文件")
+    @Operation(
+            summary = "编辑文档",
+            description = "更新文档标题或上传新文件。可以只更新标题，或只更新文件，或同时更新"
+    )
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "文档编辑成功"),
-            @ApiResponse(responseCode = "400", description = "请求参数错误"),
-            @ApiResponse(responseCode = "404", description = "文档不存在")
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "文档编辑成功",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = SuccessResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "请求参数错误",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(example = "{\"error\": \"标题和文件至少要更新一个\"}")
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "文档不存在",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(example = "{\"error\": \"文档不存在\"}")
+                    )
+            )
     })
     @PutMapping(value = "/{spaceId}/docs/{docId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public SuccessResponse updateDocument(
-            @Parameter(description = "知识空间ID", required = true)
+            @Parameter(
+                    description = "知识空间ID",
+                    required = true,
+                    example = "20241201120000"
+            )
             @PathVariable String spaceId,
 
-            @Parameter(description = "文档ID", required = true)
+            @Parameter(
+                    description = "文档ID",
+                    required = true,
+                    example = "doc-12345"
+            )
             @PathVariable String docId,
 
-            @Parameter(description = "新的文档标题", required = false)
+            @Parameter(
+                    description = "新的文档标题（可选）",
+                    required = false,
+                    example = "安全管理规范(更新版)"
+            )
             @RequestParam(required = false) String title,
 
-            @Parameter(description = "新的文档文件", required = false)
+            @Parameter(
+                    description = "新的文档文件（可选）",
+                    required = false
+            )
             @RequestParam(value = "file", required = false) MultipartFile file) {
 
         logger.info("收到编辑文档请求: spaceId={}, docId={}, title={}",
@@ -114,17 +186,42 @@ public class DocumentController {
         return documentService.updateDocument(spaceId, docId, title, file);
     }
 
-    @Operation(summary = "删除文档", description = "根据文档ID删除文档")
+    @Operation(
+            summary = "删除文档",
+            description = "根据文档ID删除文档，包括从知识库和文件存储中彻底删除"
+    )
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "文档删除成功"),
-            @ApiResponse(responseCode = "404", description = "文档不存在")
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "文档删除成功",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = SuccessResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "文档不存在",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(example = "{\"error\": \"文档不存在\"}")
+                    )
+            )
     })
     @DeleteMapping("/{spaceId}/docs/{docId}")
     public SuccessResponse deleteDocument(
-            @Parameter(description = "知识空间ID", required = true)
+            @Parameter(
+                    description = "知识空间ID",
+                    required = true,
+                    example = "20241201120000"
+            )
             @PathVariable String spaceId,
 
-            @Parameter(description = "文档ID", required = true)
+            @Parameter(
+                    description = "文档ID",
+                    required = true,
+                    example = "doc-12345"
+            )
             @PathVariable String docId) {
 
         logger.info("收到删除文档请求: spaceId={}, docId={}", spaceId, docId);
@@ -140,17 +237,34 @@ public class DocumentController {
         return documentService.deleteDocument(spaceId, docId);
     }
 
-    @Operation(summary = "搜索文档", description = "根据查询关键词搜索文档")
+    @Operation(
+            summary = "搜索文档",
+            description = "根据查询关键词在指定知识空间中搜索文档。如果不提供关键词，则返回该空间下的所有文档"
+    )
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "搜索成功",
-                    content = @Content(schema = @Schema(implementation = SearchResponse.class)))
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "搜索成功",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = SearchResponse.class)
+                    )
+            )
     })
     @GetMapping("/{spaceId}/docs/search")
     public SearchResponse searchDocuments(
-            @Parameter(description = "知识空间ID", required = true)
+            @Parameter(
+                    description = "知识空间ID",
+                    required = true,
+                    example = "20241201120000"
+            )
             @PathVariable String spaceId,
 
-            @Parameter(description = "搜索关键词", required = false, example = "安全管理")
+            @Parameter(
+                    description = "搜索关键词（可选，不提供则返回所有文档）",
+                    required = false,
+                    example = "安全管理"
+            )
             @RequestParam(required = false) String q) {
 
         logger.info("收到搜索文档请求: spaceId={}, q={}", spaceId, q);

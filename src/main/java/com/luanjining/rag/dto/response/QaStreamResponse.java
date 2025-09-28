@@ -1,12 +1,17 @@
-
-// QaStreamResponse.java
 package com.luanjining.rag.dto.response;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
 
+@Schema(description = "问答流式响应")
 public class QaStreamResponse {
+    @Schema(description = "增量文本内容", example = "根据安全管理规范...")
     private String delta;
+
+    @Schema(description = "是否完成", example = "true")
     private Boolean finish;
+
+    @Schema(description = "参考文档列表")
     private List<Reference> references;
 
     public QaStreamResponse() {}
@@ -24,9 +29,15 @@ public class QaStreamResponse {
     public List<Reference> getReferences() { return references; }
     public void setReferences(List<Reference> references) { this.references = references; }
 
+    @Schema(description = "参考文档信息")
     public static class Reference {
+        @Schema(description = "文档ID", example = "123")
         private Long docId;
+
+        @Schema(description = "文档标题", example = "安全管理规范")
         private String title;
+
+        @Schema(description = "文件访问URL", example = "/files/doc123.pdf")
         private String fileUrl;
 
         public Reference() {}

@@ -51,16 +51,35 @@ rag:
 
 # MinIO配置
 minio:
-  endpoint: http://localhost:9000
-  access-key: minioadmin
-  secret-key: minioadmin
+  endpoint: api.kunxiangtech.com:9000
+  access-key: tIib6uMMDCUgujlicB3B
+  secret-key: 38lmILFSwAZUR9Rl155VYVlCgKNbZe7jIfY9EmoF
   bucket-name: rag-documents
 
+# SpringDoc OpenAPI 配置
 springdoc:
-  swagger-ui:
-    enabled: true
   api-docs:
     enabled: true
+    path: /v3/api-docs
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+    try-it-out-enabled: true
+    operations-sorter: method
+    tags-sorter: alpha
+    filter: true
+    display-request-duration: true
+    display-operation-id: false
+    show-extensions: true
+    show-common-extensions: true
+  show-actuator: false
+  default-consumes-media-type: application/json
+  default-produces-media-type: application/json
+  group-configs:
+    - group: 'rag-api'
+      display-name: 'RAG Knowledge Base API'
+      paths-to-match: '/v1/**'
+      packages-to-scan: 'com.luanjining.rag.controller'
 
 # 日志配置
 logging:
